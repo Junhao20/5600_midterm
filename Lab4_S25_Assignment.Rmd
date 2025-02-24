@@ -1,0 +1,481 @@
+---
+title: "Lab 4 Assignment : Spring 2025"
+author: "Dr.Purna Gamage"
+output: rmdformats::material
+---
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(forecast)
+library(astsa) 
+library(xts)
+library(tseries)
+library(fpp2)
+library(fma)
+library(lubridate)
+library(tidyverse)
+library(TSstudio)
+library(quantmod)
+library(tidyquant)
+library(plotly)
+library(ggplot2)
+```
+
+# Problem 1:
+
+Fit an appropriate ARIMA model for ONE of the following data sets.
+
+  a.Tesla stock :Adjusted closing prices(Use yahoo finance-`quantmod` package to get the full length of data).
+
+  b. For the `total unemployment rate`: Please download data from here (from 1949-1-1 to 2024-1-1): <https://fred.stlouisfed.org/graph/?g=8ej8>
+
+  - You will be fitting the ARIMA model to `Unemployment Rate (UNRATE)`
+
+## Answer the following questions for above both data sets
+
+## 1. Plot
+
+  a. Plot the data using ggplot or plotly and comment. 
+```{r}
+library(quantmod)
+library(ggplot2)
+library(dplyr)
+
+getSymbols("TSLA", src = "yahoo", from = "2010-01-01", to = "2024-01-01")
+
+tsla_df <- data.frame(
+  Date = index(TSLA), 
+  Price = as.numeric(TSLA$TSLA.Adjusted)
+)
+
+head(tsla_df)
+
+ggplot(tsla_df, aes(x = Date, y = Price)) +
+  geom_line(color = "steelblue") +
+  labs(title = "Tesla Adjusted Closing Prices", x = "Year", y = "Stock Price") +
+  theme_minimal()
+```
+**There is no huge fluctuation of Tesla's stock price before 2020, since 2020, Tesla's stock market is increasing constantly to 2022. The potential reason for stock price's drop may because of COVID-19 and the competition in EV cars from China.**
+
+  b. Do you think by taking the log transformation, does it make a difference, or make it better (less variation)? Do we need to take a log transformation?
+  
+**From the graph above, we can see that there is a great difference before 2020 and after 2020. Which means that there is no constant variation, and thus, log transformation might need to apply.**
+
+```{r}
+tsla_df$Log_Price <- log(tsla_df$Price)
+
+ggplot(tsla_df, aes(x = Date, y = Log_Price)) +
+  geom_line(color = "darkred") +
+  labs(title = "Log Transformed Tesla Stock Prices", x = "Year", y = "Log Price") +
+  theme_minimal()
+```
+
+
+## 2. Lag Plots
+Get the lag plots  and interpret.
+```{r}
+#| warning: false
+#| message: false
+library(ggplot2)
+library(dplyr)
+
+tsla_df_lags <- tsla_df %>%
+  mutate(
+    lag_1 = lag(Price, 1),
+    lag_2 = lag(Price, 2),
+    lag_3 = lag(Price, 3),
+    lag_4 = lag(Price, 4),
+    lag_5 = lag(Price, 5),
+    lag_6 = lag(Price, 6),
+    lag_7 = lag(Price, 7),
+    lag_8 = lag(Price, 8),
+    lag_9 = lag(Price, 9)
+  )
+
+tsla_df_long <- tsla_df_lags %>%
+  pivot_longer(cols = starts_with("lag_"), names_to = "Lag", values_to = "Lagged_Price")
+
+ggplot(tsla_df_long, aes(x = Lagged_Price, y = Price)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "red", linetype = "dashed") + 
+  facet_wrap(~Lag, scales = "free") +
+  labs(
+    title = "Lag Plots for Tesla Stock Prices",
+    x = "Lagged Price",
+    y = "Current Price"
+  ) +
+  theme_minimal()
+```
+
+**The lag plot shows a strong linear relationship between Tesla’s stock prices and their past values, indicating high autocorrelation. This suggests that the stock follows a persistent trend rather than behaving randomly. **
+
+## 3. Fit an appropriate ARIMA model.
+
+Follow these steps.
+
+  a. Difference the data and check the acf and pacf graphs.
+```{r}
+par(mfrow = c(2,1))
+acf(diff(tsla_df$Price), main = "ACF of Differenced Tesla Prices")
+pacf(diff(tsla_df$Price), main = "PACF of Differenced Tesla Prices")
+par(mfrow = c(1,1))
+```
+
+  b. Does it need a second order differencing?
+```{r}
+adf.test(diff(tsla_df$Price))
+```
+
+**From the adf test above, we could see that the series is already stationary, so no need for a secondary differencing.**
+
+  c. From the acf and pacf graphs (part a), choose a set of values for the
+  parameters p,d,q. (Remember this is real data, so choose a sequence of values for p and q).
+
+**Since we did take differencing, so the d = 1, and secondary diffferencing is not needed. In ACF plot, it does not showing a clear cut off, so there might not be a strong MA model, so the q could be 0 or 1. PACF does not show a sharp cutoff but instead gradually declines, and this could be a sign of AR model, so the p = 1.**
+
+**Potential models:**
+
+- ARIMA(1,1,0)
+- ARIMA(2,1,0)
+- ARIMA(3,1,0)
+
+  d. What are the choices of p,d,q?
+
+**The potential choices has been listed above in question c.**
+  
+  e. Choose different models by `manual search`, `auto.arima()` and `fpp3` package code.
+
+```{r}
+library(forecast)
+library(quantmod)
+library(forecast)
+getSymbols("TSLA", src = "yahoo", from = "2010-01-01")
+ts_tesla <- ts(Cl(TSLA), frequency = 252)  
+
+model_110 <- arima(ts_tesla, order = c(1,1,0)) # ARIMA(1,1,0)
+model_210 <- arima(ts_tesla, order = c(2,1,0)) # ARIMA(2,1,0)
+model_310 <- arima(ts_tesla, order = c(3,1,0)) # ARIMA(3,1,0)
+
+AIC(model_110, model_210, model_310)
+```
+
+  
+  f. What is your best model? answer this using error metrics and model diagnostics. 
+    **Plot your `forecast` for the best model you choose.**
+    
+**From the AIC resultsm we can see that the model_110 is the best so far.**
+```{r}
+library(forecast)
+library(ggplot2)
+
+best_model <- arima(ts_tesla, order = c(1, 1, 0)) # best model
+
+forecast_best <- forecast(best_model, h = 30)
+
+autoplot(forecast_best) +
+  labs(title = "Tesla Stock Price Forecast - ARMA(1,1,0)",
+       x = "Time",
+       y = "Stock Price") +
+  theme_minimal()
+```
+  
+  g. fit the best model and forecast. Provide Forecast plot.
+```{r}
+library(forecast)
+library(ggplot2)
+
+best_model <- arima(ts_tesla, order = c(1, 1, 0))
+
+forecast_best <- forecast(best_model, h = 30)
+
+autoplot(forecast_best) +
+  labs(title = "Tesla Stock Price Forecast - ARMA(1,1,0)",
+       x = "Time",
+       y = "Stock Price") +
+  theme_minimal() # same as the previous one
+```
+
+  
+  h. Now the benchmark methods: use MAE and MSE for your ARIMA fit and benchmark methods and compare.Which model is good? Is your model outperform the benchmark methods?
+
+```{r}
+library(Metrics)  
+library(forecast)
+
+train_size <- round(length(ts_tesla) * 0.8)
+train_data <- ts_tesla[1:train_size]
+test_data <- ts_tesla[(train_size + 1):length(ts_tesla)]
+
+best_model <- arima(train_data, order = c(1, 1, 0))
+
+forecast_best <- forecast(best_model, h = length(test_data))
+
+arma_mae <- mae(test_data, forecast_best$mean)
+arma_mse <- mse(test_data, forecast_best$mean)
+
+naive_forecast <- naive(train_data, h = length(test_data))
+naive_mae <- mae(test_data, naive_forecast$mean)
+naive_mse <- mse(test_data, naive_forecast$mean)
+
+ma_forecast <- ma(train_data, order = 5)
+ma_mae <- mae(test_data, rep(ma_forecast[length(ma_forecast)], length(test_data)))
+ma_mse <- mse(test_data, rep(ma_forecast[length(ma_forecast)], length(test_data)))
+
+results <- data.frame(
+  Model = c("ARMA(1,1,0)", "Naïve (Random Walk)", "Moving Average"),
+  MAE = c(arma_mae, naive_mae, ma_mae),
+  MSE = c(arma_mse, naive_mse, ma_mse)
+)
+
+print(results)
+```
+
+**Again, ARMA 1,1,0 is still the best. It does outperform the other models.**
+  
+  i. Fit a `prophet` model. Compare?
+```{r}
+library(dplyr)
+library(lubridate)
+library(prophet)
+library(quantmod)
+library(ggplot2)
+library(StanHeaders)
+
+getSymbols("TSLA", src = "yahoo", from = "2010-01-01", to = Sys.Date())
+tsla_df <- data.frame(Date = index(TSLA), Price = as.numeric(TSLA$TSLA.Adjusted))
+
+df_prophet <- tsla_df %>%
+  rename(ds = Date, y = Price) %>%
+  arrange(ds)
+
+m <- prophet(df_prophet)
+future <- make_future_dataframe(m, periods = 365)
+forecast <- predict(m, future)
+
+plot(m, forecast) +
+  ggtitle("Tesla Stock Price Forecast using Prophet") +
+  xlab("Year") + 
+  ylab("Stock Price (USD)")
+
+prophet_plot_components(m, forecast)
+```
+
+
+# Problem 2
+
+Please use the Ice cream Production `icecreamproduction.csv` data set. This is Ice Cream Production for United States.
+downloaded from <https://fred.stlouisfed.org/series/M0174BUSM411NNBR>
+
+These Data Are For Factory Production Only. Source: United States Department Of Agriculture, "Production And Consumption Of Manufactured Dairy Products, " (Technical Bulletin No.722, April 1940) P.71 And Direct From Bureau Of Agricultural Economics.
+
+```{r}
+library(dplyr)
+library(lubridate)
+
+df <- read.csv("icecreamproduction.csv")
+
+str(df)  
+
+df <- df %>%
+  rename(Date = observation_date, Production = M0174BUSM411NNBR) %>%
+  mutate(Date = as.Date(Date, format = "%Y-%m-%d"))  # Convert to Date format
+
+head(df)
+```
+
+
+ a. `Plot the data and comment. `
+
+   - Plot the data using ggplot or plotly and comment. 
+   - Do you think by taking the log transformation, does it make a difference, or make it better (less variation)?
+ 
+ `Check for seasonality:` Get the lag plots  and Try decomposing (just plotting is enough) to check for seasonality. Look at ACF plot to check for seasonal correlation. What do you observe? Also, comment about stationarity.
+
+```{r}
+ts_icecream <- ts(df$Production, start = c(1918, 1), frequency = 12)
+
+plot(ts_icecream, main = "Ice Cream Production Over Time", ylab = "Production", xlab = "Year")
+```
+```{r}
+df <- df %>%
+  mutate(Log_Production = log(Production))
+
+ggplot(df, aes(x = Date, y = Log_Production)) +
+  geom_line(color = "darkred", size = 1) +
+  theme_minimal() +
+  labs(title = "Log-Transformed Ice Cream Production Over Time",
+       x = "Year",
+       y = "Log(Production)")
+```
+```{r}
+#| warning: false
+#| message: false
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+
+lags <- 1:9  
+plots <- lapply(lags, function(l) {
+  df %>%
+    mutate(lagged_value = lag(Production, n = l)) %>%
+    ggplot(aes(x = lagged_value, y = Production)) +
+    geom_point(alpha = 0.5, color = "black") +
+    geom_smooth(method = "lm", color = "red", linetype = "dashed") +
+    labs(title = paste("Lag", l), x = "Lagged Production", y = "Current Production") +
+    theme_minimal()
+})
+
+grid.arrange(grobs = plots, ncol = 3)
+```
+
+```{r}
+library(forecast)
+
+acf(ts_icecream, lag.max = 40, main = "Autocorrelation Function (ACF)")
+pacf(ts_icecream, lag.max = 40, main = "Partial Autocorrelation Function (PACF)")
+```
+**From the plot, we can observe a clear seasonality, for sure with common sense, the production of ice creame is higher in summer, when temperature is high. However, the series is non-stationary, there are two main evidence about that. 1: The ACF plot is decreasing slowly to 0. 2. The lag plot does not have a constant correlation and variance. So we might need to do a differencing.**
+
+c. Difference and Select the relevant p,d,q,P,D,Q.
+
+```{r}
+library(forecast)
+library(tseries)
+
+ts_diff1 <- diff(ts_icecream, differences = 1)
+adf.test(ts_diff1) 
+
+ts_diff_seasonal <- diff(ts_icecream, lag = 12)
+adf.test(ts_diff_seasonal) 
+
+ts_diff_both <- diff(diff(ts_icecream, differences = 1), lag = 12)
+adf.test(ts_diff_both)
+```
+```{r}
+acf(ts_diff_both, lag.max = 40, main = "ACF of Differenced Series")
+pacf(ts_diff_both, lag.max = 40, main = "PACF of Differenced Series")
+```
+**Since we did differencing, so d = 1. The PACF cuts off after lag 1, suggesting an AR(1) process, p = 1. The ACF shows no significant spikes beyond lag 1, which suggests MA(1) or no MA component, so the q = 0 or q = 1.**
+
+**Possible models:**
+- ARIMA(1,1,1) 
+- ARIMA(1,1,0)
+
+d. Try to find at the best model and a model with close AIC, BIC ,AICc values and considering the parsimonious principle. This means narrow it down to 2 or 3 final models.
+
+```{r}
+library(forecast)
+
+model_110 <- Arima(ts_diff_both, order = c(1,1,0))
+model_111 <- Arima(ts_diff_both, order = c(1,1,1))
+model_210 <- Arima(ts_diff_both, order = c(2,1,0))
+model_211 <- Arima(ts_diff_both, order = c(2,1,1))
+
+calculate_AICc <- function(model) {
+  k <- length(model$coef) + 1  
+  n <- length(model$residuals) 
+  AICc <- AIC(model) + (2 * k * (k + 1)) / (n - k - 1)
+  return(AICc)
+}
+
+model_comparison <- data.frame(
+  Model = c("ARIMA(1,1,0)", "ARIMA(1,1,1)", "ARIMA(2,1,0)", "ARIMA(2,1,1)"),
+  AIC = c(AIC(model_110), AIC(model_111), AIC(model_210), AIC(model_211)),
+  BIC = c(BIC(model_110), BIC(model_111), BIC(model_210), BIC(model_211)),
+  AICc = c(calculate_AICc(model_110), calculate_AICc(model_111),
+           calculate_AICc(model_210), calculate_AICc(model_211))
+)
+
+model_comparison <- model_comparison[order(model_comparison$AIC),]
+print(model_comparison)
+```
+
+```{r}
+#| summary: "auto.arima()"
+#| warning: false
+#| message: false
+
+auto_model <- auto.arima(ts_diff_both, seasonal = FALSE, stepwise = FALSE, approximation = FALSE)
+summary(auto_model)
+```
+
+```{r}
+#| warning: false
+#| message: false
+library(fpp3)
+
+df_tsibble <- ts_diff_both %>%
+  as_tsibble()
+
+model_fpp3 <- df_tsibble %>%
+  model(ARIMA(value ~ pdq(3,1,1)))
+
+report(model_fpp3)
+```
+
+
+Choose different models by `manual search`, `auto.arima()` and `fpp3` package code.
+
+**Surprisingly, auto.arima's output is way better, p = 1, d = 0, q = 4.**
+
+e. Do model diagnosis to find the best model out of the above . 
+
+**ARIMA(1, 0, 4) is the best, since it got the lowest AIC and BIC values.**
+
+f. Compare your chosen model with a benchmark method.
+```{r}
+library(forecast)
+library(Metrics)
+
+arima_model <- Arima(ts_diff_both, order = c(1,0,4))
+
+naive_model <- naive(ts_diff_both, h = 12)  
+ma_model <- ma(ts_diff_both, order = 3)
+
+arima_forecast <- forecast(arima_model, h = 12)
+naive_forecast <- naive_model 
+
+mae_arima <- mae(ts_diff_both, fitted(arima_model))
+mse_arima <- mse(ts_diff_both, fitted(arima_model))
+
+mae_naive <- mae(ts_diff_both, fitted(naive_model))
+mse_naive <- mse(ts_diff_both, fitted(naive_model))
+
+if (!is.null(ma_model) && length(ma_model) == length(ts_diff_both)) {
+  mae_ma <- mae(ts_diff_both, ma_model)
+  mse_ma <- mse(ts_diff_both, ma_model)
+} else {
+  mae_ma <- NA
+  mse_ma <- NA
+}
+
+benchmark_results <- data.frame(
+  Model = c("ARIMA(1,0,4)", "Naïve (Random Walk)", "Moving Average"),
+  MAE = c(mae_arima, mae_naive, mae_ma),
+  MSE = c(mse_arima, mse_naive, mse_ma)
+)
+
+print(benchmark_results)
+```
+**ARIMA(1, 0, 4) is the best.**
+
+g. Forecast for the next 3 years.
+
+```{r}
+library(forecast)
+
+best_model <- Arima(ts_diff_both, order = c(1,0,4))
+
+forecast_horizon <- 36
+forecast_values <- forecast(best_model, h = forecast_horizon)
+
+autoplot(forecast_values) +
+  ggtitle("Forecast of Ice Cream Production for Next 3 Years") +
+  xlab("Year") +
+  ylab("Production") +
+  theme_minimal()
+
+print(forecast_values)
+```
+

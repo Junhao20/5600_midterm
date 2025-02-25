@@ -216,5 +216,105 @@ knitr::kable(results_df, align = 'c', caption = "Comparison of ARIMA Models") %>
 
 ```
 
+8. Diagnose the models:
+
+For exmaple, we do have two models:
+
+- ARIMA(2,1,2)
+- ARIMA(4,1,1)
+
+```{r}
+model_output <- capture.output(sarima(ts_egg, 2, 1, 2))
+
+# Find the line numbers dynamically based on a keyword
+start_line <- grep("Coefficients", model_output)  # Locate where coefficient details start
+end_line <- length(model_output)  # Last line of output
+
+# Print the relevant section automatically
+cat(model_output[start_line:end_line], sep = "\n")
+```
+
+```{r}
+model_output <- capture.output(sarima(ts_egg, 4, 1, 1))
+
+# Find the line numbers dynamically based on a keyword
+start_line <- grep("Coefficients", model_output)  # Locate where coefficient details start
+end_line <- length(model_output)  # Last line of output
+
+# Print the relevant section automatically
+cat(model_output[start_line:end_line], sep = "\n")
+```
+
+9. Fit the model:
+
+
+```{r}
+fit <- Arima(ts_egg, order = c(2, 1, 2), include.drift = FALSE)
+summary(fit)
+```
+
+```{r}
+# Forecast the next 12 periods, since it is the monthly data
+forecast_result <- forecast(fit, h = 12)
+
+# Display forecast accuracy
+accuracy(forecast_result)
+
+# Plot the forecast
+autoplot(forecast_result) +
+  labs(title = "ARIMA(2,1,2) Forecast",
+       x = "Time",
+       y = "Predicted Values") +
+  theme_minimal()
+```
+
+```{r}
+
+# Fit models individually and check residuals
+f_mean <- meanf(ts_egg, h = 200)
+head(f_mean$mean) #gives the forecasted values
+
+mean(ts_egg)
+
+f_naive <- naive(ts_egg, h = 200)
+#checkresiduals(f_naive)
+
+f_drift <- rwf(ts_egg, drift = TRUE, h = 200)
+checkresiduals(f_drift)
+```
+
+Then we check residuals here.
+
+10. Bench Mark analysis:
+
+```{r}
+
+# Generate forecasts
+mean_forecast <- meanf(ts_egg, h = 12)
+naive_forecast <- naive(ts_egg, h = 12)
+drift_forecast <- rwf(ts_egg, drift = TRUE, h = 12)
+arima_forecast <- forecast(fit, h = 12)
+
+mean_df <- data.frame(Date = time(mean_forecast$mean), Mean = as.numeric(mean_forecast$mean))
+naive_df <- data.frame(Date = time(naive_forecast$mean), Naive = as.numeric(naive_forecast$mean))
+drift_df <- data.frame(Date = time(drift_forecast$mean), Drift = as.numeric(drift_forecast$mean))
+arima_df <- data.frame(Date = time(arima_forecast$mean), ARIMA_Fit = as.numeric(arima_forecast$mean))
+
+ts_egg_df <- data.frame(Date = time(ts_egg), Price = as.numeric(ts_egg))
+
+# Create Plotly plot
+plot_ly() %>%
+  add_lines(data = ts_egg_df, x = ~Date, y = ~Price, name = 'Original Data', line = list(color = 'black')) %>%
+  add_lines(data = mean_df, x = ~Date, y = ~Mean, name = 'Mean Forecast', line = list(color = 'blue')) %>%
+  add_lines(data = naive_df, x = ~Date, y = ~Naive, name = 'Naïve Forecast', line = list(color = 'red')) %>%
+  add_lines(data = drift_df, x = ~Date, y = ~Drift, name = 'Drift Forecast', line = list(color = 'green')) %>%
+  add_lines(data = arima_df, x = ~Date, y = ~ARIMA_Fit, name = 'ARIMA Fit', line = list(color = 'purple')) %>%
+  layout(title = 'Job Postings Forecast',
+         xaxis = list(title = 'Date'),
+         yaxis = list(title = 'Number of Job Postings'),
+         legend = list(title = list(text = 'Forecast Methods')))
+
+```
+
 
 

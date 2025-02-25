@@ -96,217 +96,246 @@ fig1
 Non-stationary
 
 ```{r}
+library(patchwork)
 diff <- diff(ts_egg)
 fig_diff1 <- ggAcf(diff, 50) + 
   ggtitle("ACF For differenced egg price") + 
-  theme_minimal()
+  theme_minimal() # q = 0, 1, 2
+fig_diff2_pacf <- ggPacf(diff, 50) + 
+  ggtitle("PACF For differenced egg price")+ 
+  theme_minimal() # p = 0, 1, 2, 3
 
-fig_diff1
+diff_2 <- diff(diff, lag = 12) # D = 1
+fig_diff2_acf <- ggAcf(diff_2, 50) + 
+  ggtitle("ACF for seasonal differencing")+
+  theme_minimal() # Q = 1 or Q = 0
+
+fig_diff2_pacf <- ggPacf(diff_2, 50) + 
+  ggtitle("PACF for seasonal differencing") + 
+  theme_minimal() # P = 1, 2, 3, 4
+  
+  
+(fig_diff1 | fig_diff2_pacf) / (fig_diff2_acf | fig_diff2_pacf)
 ```
-```{r}
-tseries::adf.test(diff)
-```
-Now it is stationary, second differencing is not needed.
+
+q = 0, 1, 2 = 1:2
+p = 0, 1, 2, 3 = 1:3
+d = 1
+D = 1
+Q = 0, 1 = 1:2
+P = 1, 2, 3, 4 = 1:4
+
+
 
 ```{r}
-# now we have d = 1
-# for q -> ACF, acf has 2 significant spikes, so maybe q = 0, 1, 2
-fig_diff_P <- ggPacf(diff, 50) + 
-  ggtitle("PACF for differenced data") + 
-  theme_minimal()
+######################## Check for different combinations ########
 
-fig_diff_P # in this case, p = 0, 1, 2
-```
-```{r}
 
-# Load necessary libraries
-library(knitr)
-library(kableExtra)
-library(forecast)
-
-# Create an empty matrix to store results
-results_matrix <- matrix(rep(NA, 6 * 20), nrow = 20)
-
-# Initialize index for matrix row
-i <- 1
-
-# Loop through ARIMA model parameters: d = 1,2; p = 0:4; q = 1,2
-for (d in 1:2) {
-  for (p in 0:2) {
-    for (q in 0:2) {
-      
-      # Ensure 'ts_indeed' is a univariate time series by selecting the correct column
-      model <- Arima(ts_egg, order = c(p, d, q), include.drift = TRUE)
-      
-      # Store model parameters and AIC/BIC/AICc values in matrix
-      results_matrix[i, ] <- c(p, d, q, model$aic, model$bic, model$aicc)
-      
-      # Increment row index
-      i <- i + 1
+#write a funtion
+SARIMA.c=function(p1,p2,q1,q2,P1,P2,Q1,Q2,data){
+  
+  #K=(p2+1)*(q2+1)*(P2+1)*(Q2+1)
+  
+  temp=c()
+  d=1
+  D=1
+  s=12
+  
+  i=1
+  temp= data.frame()
+  ls=matrix(rep(NA,9*35),nrow=35)
+  
+  
+  for (p in p1:p2)
+  {
+    for(q in q1:q2)
+    {
+      for(P in P1:P2)
+      {
+        for(Q in Q1:Q2)
+        {
+          if(p+d+q+P+D+Q<=9)
+          {
+            
+            model<- Arima(data,order=c(p-1,d,q-1),seasonal=c(P-1,D,Q-1))
+            ls[i,]= c(p-1,d,q-1,P-1,D,Q-1,model$aic,model$bic,model$aicc)
+            i=i+1
+            #print(i)
+            
+          }
+          
+        }
+      }
     }
+    
   }
+  
+  
+  temp= as.data.frame(ls)
+  names(temp)= c("p","d","q","P","D","Q","AIC","BIC","AICc")
+  
+  temp
+  
 }
 
-# Convert matrix to data frame
-results_df <- as.data.frame(results_matrix)
-colnames(results_df) <- c("p", "d", "q", "AIC", "BIC", "AICc")
+```
 
-# Find the row with the minimum AIC
-highlight_row <- which.min(results_df$AIC)
+q = 0, 1, 2 = 1:2
+p = 0, 1, 2, 3 = 1:3
+d = 1
+D = 1
+Q = 0, 1 = 1:2
+P = 1, 2, 3, 4 = 1:4
 
-# Generate kable table with highlighting for the row with the minimum AIC
-knitr::kable(results_df, align = 'c', caption = "Comparison of ARIMA Models") %>%
-  kable_styling(full_width = FALSE, position = "center") %>%
-  row_spec(highlight_row, bold = TRUE, background = "#FFFF99")  # Highlight row in yellow
 
+```{r}
+
+output=SARIMA.c(p1=1,p2=3,q1=1,q2=2,P1=1,P2=4,Q1=1,Q2=2,data=ts_egg)
+#output
+
+#knitr::kable(output)
+output[which.min(output$AIC),] 
+output[which.min(output$BIC),]
+output[which.min(output$AICc),]
 
 ```
 
-So far, model ARIMA(2, 1, 2) is the best.
+It find out ARIMA(2, 1, 0)(0, 1, 1)[12] is the best model.
 
 ```{r}
 auto.arima(ts_egg)
 ```
-The Auto arima saying the ARIMA(4, 1, 1) is the best.
+Auto ARIMA THINKs ARIMA(4, 1, 1)(0, 0, 2)[12] is the best model.
+
+## Diagnose:
 
 ```{r}
-# Loop aagin 
+# Set seed for reproducibility
+set.seed(123)
 
+# ------------------- Fit SARIMA Models & Extract Key Output Dynamically -------------------
 
-# Load necessary libraries
-library(knitr)
-library(kableExtra)
-library(forecast)
+# Model 1: SARIMA(2,1,0)(0,1,1)[12]
+model_output1 <- capture.output(sarima(ts_egg, 2,1,0, 0,1,1,12))
 
-# Create an empty matrix to store results
-results_matrix <- matrix(rep(NA, 6 * 20), nrow = 20)
-
-# Initialize index for matrix row
-i <- 1
-
-# Loop through ARIMA model parameters: d = 1,2; p = 0:4; q = 1,2
-for (d in 1) {
-  for (p in 0:4) {
-    for (q in 0:2) {
-      
-      # Ensure 'ts_indeed' is a univariate time series by selecting the correct column
-      model <- Arima(ts_egg, order = c(p, d, q), include.drift = TRUE)
-      
-      # Store model parameters and AIC/BIC/AICc values in matrix
-      results_matrix[i, ] <- c(p, d, q, model$aic, model$bic, model$aicc)
-      
-      # Increment row index
-      i <- i + 1
-    }
-  }
-}
-
-# Convert matrix to data frame
-results_df <- as.data.frame(results_matrix)
-colnames(results_df) <- c("p", "d", "q", "AIC", "BIC", "AICc")
-
-# Find the row with the minimum AIC
-highlight_row <- which.min(results_df$AIC)
-
-# Generate kable table with highlighting for the row with the minimum AIC
-knitr::kable(results_df, align = 'c', caption = "Comparison of ARIMA Models") %>%
-  kable_styling(full_width = FALSE, position = "center") %>%
-  row_spec(highlight_row, bold = TRUE, background = "#FFFF99")  # Highlight row in yellow
-
-```
-
-ARIMA(4, 1, 2) is so far the best.
-
-## Diag:
-
-Possible models:
-
-ARIMA(4, 1, 1) -> Auto.arima
-ARIMA(2, 1, 2) -> First choice
-
-```{r}
-model_output <- capture.output(sarima(ts_egg, 2, 1, 2))
-
-# Find the line numbers dynamically based on a keyword
-start_line <- grep("Coefficients", model_output)  # Locate where coefficient details start
-end_line <- length(model_output)  # Last line of output
+# Find the relevant line numbers dynamically based on the keyword "Coefficients"
+start_line1 <- grep("Coefficients", model_output1)
+end_line1 <- length(model_output1)  
 
 # Print the relevant section automatically
-cat(model_output[start_line:end_line], sep = "\n")
-```
-```{r}
-model_output <- capture.output(sarima(ts_egg, 4, 1, 1))
+cat(model_output1[start_line1:end_line1], sep = "\n")
 
-# Find the line numbers dynamically based on a keyword
-start_line <- grep("Coefficients", model_output)  # Locate where coefficient details start
-end_line <- length(model_output)  # Last line of output
+# ------------------- Model 2: SARIMA(4,1,1)(0,0,2)[12] -------------------
+
+model_output2 <- capture.output(sarima(ts_egg, 4,1,1, 0,0,2,12))
+
+# Find the relevant line numbers dynamically based on the keyword "Coefficients"
+start_line2 <- grep("Coefficients", model_output2)
+end_line2 <- length(model_output2)  
 
 # Print the relevant section automatically
-cat(model_output[start_line:end_line], sep = "\n")
-```
+cat(model_output2[start_line2:end_line2], sep = "\n")
 
-Best model should be 2, 1, 2.
+```
+ARIMA(2, 1, 0)(0, 1, 1)[12] is the best, since: 
+
+- The **Residual Plot** shows nearly consistent fluctuation around zero, however, after 2020, the residuals fluctate more than the previous years, but still around 0, we could say that the residual is stationary.
+
+- The **Autocorrelation Function (ACF)** of the residuals reveals significant autocorrelations around lag 1.5 and high order lags, which are too high to include in the model.
+
+- The **Q-Q Plot** indicates that the residuals follow a near-normal distribution, with minor deviations at the tails, which is typical in time series data.
+
+- The **P-value** plots showing lots of insignificance from lag = 0 to lag = 16. AR2, AR3 are not significant in this case.
 
 ```{r}
-fit <- Arima(ts_egg, order = c(2, 1, 2), include.drift = FALSE)
+# ------------------- Fit SARIMA Models & Extract Key Output Dynamically -------------------
+
+# Model 1: SARIMA(2,1,0)(0,1,1)[12]
+model_output1 <- capture.output(sarima(ts_egg, 2,1,0, 0,1,1,12))
+
+# Find the relevant line numbers dynamically based on the keyword "Coefficients"
+start_line1 <- grep("Coefficients", model_output1)
+end_line1 <- length(model_output1)  
+
+# Print the relevant section automatically
+cat(model_output1[start_line1:end_line1], sep = "\n")
+```
+
+## Fit the model:
+
+
+- The **Residual Plot** shows nearly consistent fluctuation around zero, however, after 2020, the residuals fluctate more than the previous years, but still around 0, we could say that the residual is stationary.
+
+- The **Autocorrelation Function (ACF)** of the residuals reveals significant autocorrelations around lag 0 and high order lags, which are too high to include in the model.
+
+- The **Q-Q Plot** indicates that the residuals follow a near-normal distribution, with minor deviations at the tails, which is typical in time series data.
+
+- except ar1 is not significant, all other parameters are significant.
+
+```{r}
+fit <- Arima(ts_egg, order=c(2,1,0), seasonal=list(order=c(0,1,1),period=12))
 summary(fit)
 ```
-```{r}
-# Forecast the next 365 periods
-forecast_result <- forecast(fit, h = 365)
-
-# Display forecast accuracy
-accuracy(forecast_result)
-
-# Plot the forecast
-autoplot(forecast_result) +
-  labs(title = "ARIMA(2,1,2) Forecast",
-       x = "Time",
-       y = "Predicted Values") +
-  theme_minimal()
-```
 
 ```{r}
+library(ggplot2)
+library(forecast)
+library(tsibble)
+library(dplyr)
 
-# Fit models individually and check residuals
-f_mean <- meanf(ts_egg, h = 200)
-head(f_mean$mean) #gives the forecasted values
+# Convert ts_egg to a data frame with proper dates
+start_date <- as.Date("1980-01-01")  # Adjust based on actual data
+date_seq <- seq(start_date, by = "month", length.out = length(ts_egg))
 
-mean(ts_egg)
+ts_egg_df <- data.frame(
+  Date = date_seq,
+  Price = as.numeric(ts_egg)
+)
 
-f_naive <- naive(ts_egg, h = 200)
-#checkresiduals(f_naive)
-
-f_drift <- rwf(ts_egg, drift = TRUE, h = 200)
-checkresiduals(f_drift)
-```
-
-```{r}
+# Fit ARIMA model
+fit <- auto.arima(ts_egg)
 
 # Generate forecasts
-mean_forecast <- meanf(ts_egg, h = 365)
-naive_forecast <- naive(ts_egg, h = 365)
-drift_forecast <- rwf(ts_egg, drift = TRUE, h = 365)
-arima_forecast <- forecast(fit, h = 365)
+mean_forecast <- forecast(meanf(ts_egg, h = 12))
+naive_forecast <- forecast(naive(ts_egg, h = 12))
+snaive_forecast <- forecast(snaive(ts_egg, h = 12))
+drift_forecast <- forecast(rwf(ts_egg, h = 12, drift = TRUE))
+arima_forecast <- forecast(fit, h = 12)
 
-mean_df <- data.frame(Date = time(mean_forecast$mean), Mean = as.numeric(mean_forecast$mean))
-naive_df <- data.frame(Date = time(naive_forecast$mean), Naive = as.numeric(naive_forecast$mean))
-drift_df <- data.frame(Date = time(drift_forecast$mean), Drift = as.numeric(drift_forecast$mean))
-arima_df <- data.frame(Date = time(arima_forecast$mean), ARIMA_Fit = as.numeric(arima_forecast$mean))
-
-ts_egg_df <- data.frame(Date = time(ts_egg), Price = as.numeric(ts_egg))
-
-# Create Plotly plot
-plot_ly() %>%
-  add_lines(data = ts_egg_df, x = ~Date, y = ~Price, name = 'Original Data', line = list(color = 'black')) %>%
-  add_lines(data = mean_df, x = ~Date, y = ~Mean, name = 'Mean Forecast', line = list(color = 'blue')) %>%
-  add_lines(data = naive_df, x = ~Date, y = ~Naive, name = 'Naïve Forecast', line = list(color = 'red')) %>%
-  add_lines(data = drift_df, x = ~Date, y = ~Drift, name = 'Drift Forecast', line = list(color = 'green')) %>%
-  add_lines(data = arima_df, x = ~Date, y = ~ARIMA_Fit, name = 'ARIMA Fit', line = list(color = 'purple')) %>%
-  layout(title = 'Job Postings Forecast',
-         xaxis = list(title = 'Date'),
-         yaxis = list(title = 'Number of Job Postings'),
-         legend = list(title = list(text = 'Forecast Methods')))
-
+# Convert forecasts to data frame
+# Extract forecasted values properly
+forecast_df <- data.frame(
+  Date = seq(max(ts_egg_df$Date) %m+% months(1), by = "month", length.out = 12),
+  Mean = as.numeric(mean_forecast$mean),    # Extract mean forecast
+  Naive = as.numeric(naive_forecast$mean),
+  SNaive = as.numeric(snaive_forecast$mean),
+  Drift = as.numeric(drift_forecast$mean),
+  ARIMA = as.numeric(arima_forecast$mean)
+)
+# Plot with ggplot2
+ggplot(ts_egg_df, aes(x = Date, y = Price)) +
+  geom_line(color = "black", size = 1) +  # Actual Data
+  geom_line(data = forecast_df, aes(x = Date, y = Mean, color = "Mean"), size = 1, linetype = "dashed") +
+  geom_line(data = forecast_df, aes(x = Date, y = Naive, color = "Naïve"), size = 1, linetype = "dotted") +
+  geom_line(data = forecast_df, aes(x = Date, y = SNaive, color = "Seasonal Naïve"), size = 1, linetype = "dotdash") +
+  geom_line(data = forecast_df, aes(x = Date, y = Drift, color = "Drift"), size = 1, linetype = "twodash") +
+  geom_line(data = forecast_df, aes(x = Date, y = ARIMA, color = "ARIMA Fit"), size = 1) +
+  ggtitle("Egg Price Forecast") +
+  xlab("Year") + ylab("Egg Price") +
+  scale_color_manual(values = c("Mean" = "blue", "Naïve" = "red", 
+                                "Seasonal Naïve" = "green", "Drift" = "orange", 
+                                "ARIMA Fit" = "purple")) +
+  guides(colour = guide_legend(title = "Forecast Methods")) +
+  theme_minimal()
 ```
+```{r}
+accuracy(snaive(ts_egg, h=12))
+accuracy(fit) # Fit is better
+```
+```{r}
+fit %>% forecast(h=36) %>% autoplot() #next 3 years
+
+sarima.for(ts_egg, 36, 2,1,0,0,1,1,12)
+```
+
 

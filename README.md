@@ -1,5 +1,6 @@
 # DSAN 5600 Time Series Midterm Exam Review
 
+## Reference: Professor Purna's Code in Lab 4's demonstration
 ## Code by code example:
 
 1. Step 1:

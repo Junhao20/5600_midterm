@@ -26,6 +26,7 @@ library(ggplot2)
 library(dplyr)
 ```
 
+
 # ARIMA Model
 
 ## Class Example
@@ -35,6 +36,7 @@ library(dplyr)
 As with any data analysis, the first step is to create a time plot of the data to visually inspect for any irregularities or patterns.
 
 We will use [Job Postings on Indeed in the United States](https://fred.stlouisfed.org/series/IHLIDXUS) as our example dataset.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -52,6 +54,7 @@ plot_ly(indeed_data, x = ~as.Date(Date)) %>%
 
 ```
 
+
 The plot of job postings on Indeed in the United States from 2020 to 2025 reflects significant economic shifts over this period. A sharp decline in early 2020 corresponds to the onset of the COVID-19 pandemic, followed by a rapid recovery in 2021 as businesses adapted and reopened. Job postings peaked in early 2022, likely driven by post-pandemic economic optimism and increased hiring demand. However, from mid-2022 onward, there was a steady decline, suggesting a cooling labor market potentially influenced by inflation, rising interest rates, and broader economic tightening. By 2024, the decline stabilized, indicating that the job market may have reached a new equilibrium with more consistent, albeit cautious, hiring patterns.
 
 **Converting Stock to a Time Series Object**
@@ -59,6 +62,7 @@ The plot of job postings on Indeed in the United States from 2020 to 2025 reflec
 To proceed with modeling, it's essential to convert the stock prices into a **time series object**. This format allows us to apply time series analysis techniques effectively, ensuring that the temporal structure of the data is preserved.
 
 *Note:* We are currently working with a **univariate time series**, focusing solely on number of jobs posted in [indeed.com](https://www.indeed.com/).
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -69,6 +73,7 @@ ts_indeed <- ts(indeed_data$job_postings,
                 frequency = 365.25)  # Daily data
 ```
 
+
 **Checking for Stationarity and Serial Correlation**
 
 Before fitting an ARIMA model, it's crucial to determine if the series is stationary---meaning its statistical properties, like mean and variance, remain consistent over time.
@@ -76,6 +81,7 @@ Before fitting an ARIMA model, it's crucial to determine if the series is statio
 ### Step 2: Make the time series stationary
 
 Let's go back to our example.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -87,7 +93,9 @@ ggAcf(ts_indeed, 50) +
 
 ```
 
+
 To assess serial correlation, we use the Autocorrelation Function (ACF) plot. The ACF plot shows clear signs of high serial correlation, indicating that past values significantly influence future values. This indicates **differencing** is needed to achieve stationarity.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -96,6 +104,7 @@ gglagplot(ts_indeed, do.lines = FALSE) +
   ggtitle("Lag Plot of Original Job Postings") +
   theme_minimal()
 ```
+
 
 Lag plots indicate the same high correlation that is visible in the ACF plot.
 
@@ -107,16 +116,19 @@ So, if the p-value of the test is less than the significance level (0.05) then y
 
 So, in our case, if **P Value \> 0.05** indicate non-stationarity. Therefore, we go ahead with differencing the data to make the process stationary.
 
+
 ```{r, warning=FALSE, message=FALSE}
 
 tseries::adf.test(ts_indeed)
 ```
+
 
 P-value is greater than the significance level of 0.05 indicating that the series is not stationary.
 
 ### Differencing
 
 The purpose of differencing is to transform the time series into a stationary one, where statistical properties remain constant over time.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -135,7 +147,9 @@ p1 <- ggplot() +
 p1
 ```
 
+
 #### Order of Differencing
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -165,6 +179,7 @@ acf_plot_2 <- ggAcf(diff_2,50) +
 acf_plot_1 / acf_plot_2
 ```
 
+
 The ACF plots provide valuable insights into the differencing required to achieve stationarity:
 
 1.  **First-Order Differencing**:
@@ -181,6 +196,7 @@ While the second-order differencing (d = 2) seems to provide a more stationary s
 
 The next step is to determine whether the model requires any **AutoRegressive (AR)** terms. This can be done by analyzing the **Partial Autocorrelation Function (PACF)** plot, which helps identify the appropriate number of AR terms to include in the model.
 
+
 ```{r, warning=FALSE, message=FALSE}
 
 # Plot the Partial Autocorrelation Function (PACF) for Differenced Data
@@ -195,11 +211,13 @@ p2<-ggPacf(diff_2,50) +
 p1/p2
 ```
 
+
 Here you can observe, when **d=1**, there are high correlation at lags; **p = 0,1,2,3** (rest of the lags are too high). When **d=2**, there are high correlations at; **p =0,1,2.** 0 is a choice here since the correlation is not dying down.
 
 ### Step 4: Order of the MA term (q)
 
 To determine the appropriate number of **Moving Average (MA)** terms for the model, we analyze the **Autocorrelation Function (ACF)** plot.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -215,11 +233,13 @@ p2<-ggAcf(diff_2,50) +
 p1/p2
 ```
 
+
 Here, it is clear that d=2 provides better stationarity. Hence, at d=2, we can find correlation at lags; q=1 (rest of the lags are too high for parameters)
 
 ### Step 5: Parameter Tuning
 
 Let's go throgh different parameter combinations to find the best model.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -271,16 +291,20 @@ knitr::kable(results_df, align = 'c', caption = "Comparison of ARIMA Models") %>
   row_spec(highlight_row, bold = TRUE, background = "#FFFF99")  # Highlight row in yellow
 ```
 
+
 Here, it indicates that **ARIMA(1,1,1)** model has the lowest AIC and BIC values.
 
 However, Let's check with `auto.arima()`:
+
 
 ```{r, warning=FALSE, message=FALSE}
 
 auto.arima(ts_indeed)
 ```
 
+
 This indicates **ARIMA(4,2,2)** model. Therefore, I will run the parameter combination again with adding **p=4 and q=2**.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -327,6 +351,7 @@ knitr::kable(results_df, align = 'c', caption = "Comparison of ARIMA Models") %>
 
 ```
 
+
 It is indeed that the model **ARIMA(4,2,2)** has the lowest AIC value. However, **ARIMA(4,1,2)** has the lowest BIC value.
 
 ### Step 6: Model Selection - Model Diagnostics
@@ -340,6 +365,7 @@ The Models chosen by the above analysis:
 -   ARIMA(4,2,2)
 
 **ARIMA(1,1,1)**
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -361,6 +387,7 @@ cat(model_output[start_line:end_line], sep = "\n")
 
 ```
 
+
 The **Residual Plot** shows nearly consistent fluctuation around zero, suggesting that the residuals are nearly stationary with a constant mean and finite variance over time.
 
 The **Autocorrelation Function (ACF)** of the residuals reveals no significant autocorrelations except around lag 10, which is too high to include in the model.
@@ -372,6 +399,7 @@ The **Ljung-Box Test** p-values remain mostly below the 0.05 significance level,
 **Coefficient Significance**: All model coefficients are significant for the ARIMA(1,1,1) model.
 
 **ARIMA(4,1,2)**
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -393,6 +421,7 @@ cat(model_output[start_line:end_line], sep = "\n")
 
 ```
 
+
 The **Residual Plot** shows nearly consistent fluctuation around zero, suggesting that the residuals are nearly stationary with a constant mean and finite variance over time.
 
 The **Autocorrelation Function (ACF)** of the residuals reveals significant autocorrelations around lag 2 and high order lags, which are too high to include in the model.
@@ -404,6 +433,7 @@ The **Ljung-Box Test** p-values remain below the 0.05 significance level, implyi
 **Coefficient Significance**: All model coefficients are significant for the ARIMA(4,1,2) model.
 
 **ARIMA(4,2,2)**
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -424,6 +454,7 @@ end_line <- length(model_output)  # Last line of output
 cat(model_output[start_line:end_line], sep = "\n")
 ```
 
+
 The **Residual Plot** shows nearly consistent fluctuation around zero(better than the two plots above), suggesting that the residuals are nearly stationary with a constant mean and finite variance over time.
 
 The **Autocorrelation Function (ACF)** of the residuals still shows some significant autocorrelations at high lags, which is too high to include in the model.
@@ -440,6 +471,7 @@ Model diagnostics were similar with all the above models. Therefore, we will cho
 
 #### Model fitting
 
+
 ```{r, warning=FALSE, message=FALSE}
 
 
@@ -449,6 +481,7 @@ fit <- Arima(ts_indeed, order = c(4, 2, 2), include.drift = FALSE)
 # Display model summary
 summary(fit)
 ```
+
 
 #### Model Equation
 
@@ -472,6 +505,7 @@ $$
 
 Forecasting is the final and most crucial step in time series modeling, as the primary goal of building these models is to generate accurate predictions of future values.
 
+
 ```{r, warning=FALSE, message=FALSE}
 
 # Forecast the next 365 periods
@@ -488,6 +522,7 @@ autoplot(forecast_result) +
   theme_minimal()
 ```
 
+
 The forecast for job postings over the next **year (approximately 365 days)** suggests a potential decline in the number of new postings. This downward trend could be attributed to **seasonal hiring patterns**, where many **summer and fall positions are typically posted earlier in the year, particularly in January**. Another possible explanation could be a broader **market trend indicating a slowdown in job availability**.
 
 The **confidence intervals** shown in the shaded blue area represent the range within which the actual job postings are expected to fall. The **widening of these intervals** as we move further into the forecast period reflects increasing uncertainty. While the central forecast suggests a decline, the broader confidence range indicates that there is still some possibility for fluctuations---either a steeper decline or a stabilization in job postings. This uncertainty highlights the need to monitor the job market closely over the coming months to determine whether this trend is seasonal or indicative of a larger economic shift.
@@ -501,6 +536,7 @@ For **univariate time series forecasting**, establishing benchmarks is straightf
 By comparing new forecasting models against these baseline methods, we can better understand whether the proposed techniques provide meaningful improvements.
 
 Let's go back to our example on the job postings at indeed.com.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -537,7 +573,9 @@ autoplot(ts_indeed) +
 
 ```
 
+
 In plotly so we can zoom the forecasts:
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -572,11 +610,13 @@ plot_ly() %>%
 
 ```
 
+
 By zooming n, it is very clear that the ARIMA model does a better method than the basic bench mark methods.
 
 ## fpp3 package
 
 `fpp3` package has a new tool for fitting models automatically similar to `auto.arima()` but the model procedure is different in the `fpp3` package.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -601,9 +641,11 @@ fit <- ts_indeed2 %>%
 report(fit)
 ```
 
+
 This is a seasonal model. This could be better considering the data was daily and it was indicated that the Frequency was Daily,7-Day [source](https://fred.stlouisfed.org/series/IHLIDXUS). We can revisit in the next chapter.
 
 Check the model diagnostics:
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -624,7 +666,9 @@ end_line <- length(model_output)  # Last line of output
 cat(model_output[start_line:end_line], sep = "\n")
 ```
 
+
 Still it dosen't make a big difference but seasonal ar1 coefficient is not significant here. However, this model has a lower AIC value than the ARIMA(4,2,2) model.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -652,6 +696,7 @@ autoplot(forecast_result) +
   theme_minimal()
 ```
 
+
 ## Prophet Model
 
 Prophet is a procedure for forecasting time series data based on an additive model where non-linear trends are fit with yearly, weekly, and daily seasonality, plus holiday effects. It works best with time series that have strong seasonal effects and several seasons of historical data. Prophet is robust to missing data and shifts in the trend, and typically handles outliers well.
@@ -665,6 +710,7 @@ Prophet is open source software released by Facebook's Core Data Science team. I
 [Read More 1](https://facebook.github.io/prophet/docs/quick_start.html#r-api)
 
 [Read More 2](https://mode.com/example-gallery/forecasting_prophet_r_cookbook)
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -692,11 +738,13 @@ plot(prophet_model, predictions)
 
 ```
 
+
 This forecasting looks better than the simple ARIMA or the SARIMA model. We will discuss more examples later.
 
 ## Financial Time Series: Apple Stock prices
 
 We will use Apple stock prices as our example dataset.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -729,11 +777,13 @@ ggplot(data) +
 
 ```
 
+
 `AAPL` is the ticker symbol for Apple Inc.'s stock, and we have retrieved its historical prices from Yahoo Finance.
 
 Upon plotting the data, we observe **heteroscedasticity**, where the variability increases over time. This non-constant variance can negatively impact model accuracy. To mitigate this, we apply a **log transformation**, which helps stabilize the variance.
 
 The log-transformed data reduces heteroscedasticity, providing a more consistent trend and making it more suitable for reliable model fitting.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -748,7 +798,9 @@ ggAcf(ts_AAPL,50) +
   theme_minimal()
 ```
 
+
 To assess serial correlation, we use the Autocorrelation Function (ACF) plot. The ACF plot shows clear signs of high serial correlation, indicating that past values significantly influence future values. This indicates **differencing** is needed to achieve stationarity.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -768,9 +820,11 @@ autoplot(ts_AAPL, series = "Apple Adjusted Close") +
   theme_minimal()
 ```
 
+
 Applying a high moving average (MA) helps smooth out short-term fluctuations, making long-term trends and patterns more visible. In this case, the moving average highlights a substantial increase in Apple's stock prices, particularly after the year 2000.
 
 ### Log transformation
+
 
 ```{r, warning=FALSE, message=FALSE}
 ###### Load Required Libraries ######
@@ -814,9 +868,11 @@ p2 <- ggplot() +
 p1 / p2
 ```
 
+
 It is clear that the data needs to be transformed before fitting model.
 
 #### Differencing - parameter selection
+
 
 ```{r, warning=FALSE, message=FALSE}
 ###### Differencing the Log-Transformed Data ######
@@ -837,7 +893,9 @@ acf_plot1 / acf_plot2
 
 ```
 
+
 First order differencing is sufficient.
+
 
 ```{r, warning=FALSE, message=FALSE}
 ###### ACF and PACF Plots for First Differenced Log-Transformed Data ######
@@ -853,7 +911,9 @@ pacf_plot <- ggPacf(diff_log_AAPL) +
 acf_plot / pacf_plot
 ```
 
+
 d=1, p=2:4, q = 2:4
+
 
 ```{r, warning=FALSE, message=FALSE}
 ###### Load Necessary Libraries ######
@@ -897,17 +957,21 @@ knitr::kable(results_df, align = 'c', caption = "Comparison of ARIMA Models") %>
 
 ```
 
+
 ARIMA(3,1,2) is a good model.
 
 Let's check `auto.arima()`
+
 
 ```{r}
 auto.arima(ts_log_AAPL)
 ```
 
+
 This suggests ARIMA(4,0,0)(1,0,0)\[12\].
 
 Let's check `fpp3` package:
+
 
 ```{r}
 # Load necessary libraries
@@ -939,11 +1003,13 @@ report(fit)
 
 ```
 
+
 This gives me a constant model which is not a good model.
 
 #### Model Comparison
 
 **ARIMA(3,1,2)**
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -964,6 +1030,7 @@ end_line <- length(model_output)  # Last line of output
 cat(model_output[start_line:end_line], sep = "\n")
 ```
 
+
 The **Residual Plot** shows nearly consistent fluctuation around zero, but we see some clustering, suggesting that the financial models would be better for this data.
 
 The **Autocorrelation Function (ACF)** of the residuals shows mostly independence..
@@ -975,6 +1042,7 @@ The **Ljung-Box Test** p-values remain mostly below the 0.05 significance level,
 **Coefficient Significance**: ar2 and ma2 coefficients are not significant.
 
 **ARIMA(4,0,0)(1,0,0)\[12\]**
+
 
 ```{r, warning=FALSE, message=FALSE, eval=FALSE}
 ###### Set Seed for Reproducibility ######
@@ -994,6 +1062,7 @@ cat(model_output[start_line:end_line], sep = "\n")
 
 ```
 
+
 This gives the below error message stating that it has non-stationary AR part which means this is not a good fit for the data:
 
 "Error in arima(xdata, order = c(p, d, q), seasonal = list(order = c(P, : non-stationary AR part from CSS"
@@ -1002,12 +1071,14 @@ This gives the below error message stating that it has non-stationary AR part wh
 
 so far ARIMA(3,1,2) is better.
 
+
 ```{r}
 fit <- Arima(ts_log_AAPL, order = c(3, 1, 2), include.drift = FALSE)
 
 # Display model summary
 summary(fit)
 ```
+
 
 #### Model Equation
 
@@ -1024,6 +1095,7 @@ $$
 $$
 \theta(B)=1+ 0.52 B+ 0.14 B^2
 $$ \#### Model Forecast
+
 
 ```{r}
 # Forecast the next 365 periods
@@ -1055,6 +1127,7 @@ autoplot(ts_log_AAPL) +
 
 ```
 
+
 It looks like the drift model is catching the trend better than the ARIMA model. This means that this ARIMA model is not sufficient. Which is true. This is financial data. an ARCH/GARCH model needs to be fitted for this data.
 
 # SARIMA Model
@@ -1064,6 +1137,7 @@ $$ARIMA(p,d,q)X(P,D,Q)_s$$
 ## Class Example
 
 We will use [Egg Prices](https://fred.stlouisfed.org/series/APU0000708111) as our example dataset.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1080,11 +1154,13 @@ plot_ly(eggs_data, x = ~as.Date(Date), y = ~egg_prices, type = 'scatter', mode =
          yaxis = list(title = "Egg Prices"))
 ```
 
+
 Upon plotting the data, we observe **heteroscedasticity**, where the variability increases over time. This non-constant variance can negatively impact model accuracy. To mitigate this, we apply a **log transformation**, which helps stabilize the variance.
 
 The log-transformed data reduces heteroscedasticity, providing a more consistent trend and making it more suitable for reliable model fitting.
 
 To confirm, let's compare the logged-transformed data and the differenced data.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1099,7 +1175,9 @@ plot_ly(eggs_data, x = ~as.Date(Date)) %>%
          yaxis = list(title = "Price"))
 ```
 
+
 *Note:* We are currently working with a **univariate time series**, focusing solely on Eggs prices.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1136,11 +1214,13 @@ p2 <- ggplot() +
 p1 / p2
 ```
 
+
 It is clear from the above data that the log transformed data should be used.
 
 #### Seasonality
 
 Check the seasonality:
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1151,9 +1231,11 @@ autoplot(decompose(ts_log_eggs)) +
   ylab("Value")
 ```
 
+
 There is a clear seasonal component here.
 
 Moreover, check the lag plots for seasonal correlation at lags 12, 24, 36, 48.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1162,7 +1244,9 @@ gglagplot(ts_log_eggs, do.lines = FALSE, set.lags = c(12, 24, 36, 48)) +
   ggtitle("Lag Plot of Log Transformed Egg Prices")
 ```
 
+
 There seem to be correlation at seasonal lag 1 and 2.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1171,11 +1255,13 @@ ggAcf(ts_log_eggs,50) +
   ggtitle("ACF of Log Transformed Egg Prices")
 ```
 
+
 However, the above ACF plot makes it a little hard to identify seasonal correlations. This difficulty may stem from the strong autocorrelation caused by the underlying trend in the data.
 
 ### Differencing the data
 
 **Ordinary Differencing**
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1202,9 +1288,11 @@ acf_log_plot_1 / acf_log_plot_2
 
 ```
 
+
 The above plots clearly indicate that first-order differencing is sufficient, while second-order differencing results in over-differencing. Additionally, strong seasonal correlations are evident at seasonal lags of 12, 24, 36, and so on.
 
 **Seasonal Differencing**
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1217,9 +1305,11 @@ ggAcf(seasonal_only_diff) +
   theme_minimal()
 ```
 
+
 Seasonal differencing alone is insufficient, as significant autocorrelation from the underlying trend components remains in the series.
 
 **Both Ordinary Differencing and Seasonal differencing**
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1236,11 +1326,13 @@ ggAcf(seasonal_diff) +
   theme_minimal()
 ```
 
+
 This series appears closer to weak stationarity. The ACF plot shows clear autocorrelations at lags q = 0,2, 4 and Q = 1.
 
 Additionally, both first-order differencing (d = 1) and seasonal differencing (D = 1) have been applied to the data.
 
 Let's check the PACF plot to check the AR parameters.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1250,9 +1342,11 @@ ggPacf(seasonal_diff) +
   theme_minimal()
 ```
 
+
 The PACF plot shows clear autocorrelations at lags p = 0,2,3 and P = 0,1,2.
 
 ### Parameter Search
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1306,9 +1400,11 @@ knitr::kable(results_df, align = 'c', caption = "Comparison of SARIMA Models") %
 
 ```
 
+
 This shows that the lowest AIC and BIC is for ARIMA(2,1,1)x(1,1,1)\[12\].
 
 I'm going to check with different parameters.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1365,14 +1461,17 @@ minbic
 
 ```
 
+
 This results in ARIMA(3,1,2)x(2,1,1)\[12\] and ARIMA(0,1,2)x(0,1,1)\[12\].
 
 #### Checking with auto.arima()
+
 
 ```{r, warning=FALSE, message=FALSE}
 
 auto.arima(ts_log_eggs)
 ```
+
 
 This shows the good fit is ARIMA(3,1,2)x(2,0,0)\[12\].
 
@@ -1388,6 +1487,7 @@ The Models chosen by the above analysis:
 -   ARIMA(0,1,2)x(0,1,1)\[12\]
 
 **ARIMA(2,1,1)x(1,1,1)\[12\]**
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1408,6 +1508,7 @@ cat(model_output[start_line:end_line], sep = "\n")
 
 ```
 
+
 The **Residual Plot** shows nearly consistent fluctuation around zero, suggesting that the residuals are nearly stationary with a constant mean and finite variance over time.
 
 The **Autocorrelation Function (ACF)** of the residuals reveals no significant autocorrelations indicating a good model.
@@ -1419,6 +1520,7 @@ The **Ljung-Box Test** p-values remain mostly above the 0.05 significance level,
 **Coefficient Significance**: Here coefficients for ar1, ma1, sar1 are not significant. This may question about this model being a good fit based on this results.
 
 **ARIMA(3,1,2)x(2,0,0)\[12\]**
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1442,6 +1544,7 @@ end_line <- length(model_output)  # Last line of output
 cat(model_output[start_line:end_line], sep = "\n")
 ```
 
+
 The **Residual Plot** shows nearly consistent fluctuation around zero, suggesting that the residuals are nearly stationary with a constant mean and finite variance over time.
 
 The **Autocorrelation Function (ACF)** of the residuals reveals no significant autocorrelations indicating a good model.
@@ -1453,6 +1556,7 @@ The **Ljung-Box Test** p-values remain mostly above the 0.05 significance level,
 **Coefficient Significance**: Here coefficients for ar2, ar3, sar2 are not significant. This may question about this model being a good fit based on this results.
 
 **ARIMA(3,1,2)x(2,1,1)\[12\]**
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1476,7 +1580,9 @@ cat(model_output[start_line:end_line], sep = "\n")
 
 ```
 
+
 **ARIMA(0,1,2)x(0,1,1)\[12\]**
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1498,9 +1604,11 @@ end_line <- length(model_output)  # Last line of output
 cat(model_output[start_line:end_line], sep = "\n")
 ```
 
+
 Comparing all the model diagnostic models and lower AIC values, we will choose **ARIMA(3,1,2)x(2,1,1)\[12\]**.
 
 #### Fit the model
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1513,7 +1621,9 @@ fit <- Arima(ts_log_eggs, order = c(3, 1, 2), seasonal = c(2, 1, 1))
 summary(fit)
 ```
 
+
 #### Forecaseting
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1531,7 +1641,9 @@ autoplot(forecast_result) +
   theme_minimal()
 ```
 
+
 #### Benchmark Methods
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1548,11 +1660,13 @@ autoplot(ts_log_eggs) +
   xlab("Time")
 ```
 
+
 Based on the benchmark methods it is clear that the SARIMA model was able to catch the trend in the egg prices.
 
 #### Original Vs. Fitted Values
 
 **For the log transformed data**
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1574,7 +1688,9 @@ autoplot(ts_log_eggs, series = "Original Data") +
 
 ```
 
+
 **For the original data**
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1611,11 +1727,13 @@ autoplot(egg_prices_ts, series = "Original Data") +
 
 ```
 
+
 Very close prediction.
 
 ### Prophet model
 
 Remember the prophet model works better when there is strong seasonality.
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1646,11 +1764,13 @@ plot(prophet_model, predictions) +
 
 ```
 
+
 ## Example 2:
 
 US monthly natural gas consumption: 2000 - 2019. Units: Billion Cubic Feet
 
 a.  TS plot and the ACF
+
 
 ```{r}
 
@@ -1670,9 +1790,11 @@ ggAcf(USgas, lag.max = 40) +
   
 ```
 
+
 you can see the difference of the ACF plot when using `ggAcf()` and `acf()` function. When you use `ggAcf()`, the seasonal lags are at $12,24,36..$ but `acf()` indicate $1,2,..$ for seasonal lags and decimal values for ordinary lags.
 
 b.  Lag Plot
+
 
 ```{r}
 ########## Interactive plots#########
@@ -1684,18 +1806,22 @@ gglagplot(USgas, do.lines=FALSE, set.lags = c(12, 24, 36, 48))+ggtitle("US month
 
 ```
 
+
 Apparent seasonal correlation can be seen by the positive correlation at seasonal lags 12,24,36,48..
 
 c.  Decomposing
 
 We are using `decompose()` function to look at the seasonal component.
 
+
 ```{r}
 dec2=decompose(USgas,type = c("additive", "multiplicative"))
 plot(dec2)
 ```
 
+
 d.  Differencing
+
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -1708,6 +1834,7 @@ USgas %>% diff(lag=12) %>% ggtsdisplay() #first seasonal differencing
 USgas %>% diff(lag=12) %>% diff() %>% ggtsdisplay() #do both
 ```
 
+
 You can see that the first ordinary differencing is not enough because we can clearly see the seasonal correlation. Therefore, we need to proceed with the seasonal differencing.
 
 Second set of plots : only seasonal differencing. It looks like there aren't much correlation left when we do the seasonal differencing. Therefore, it could be D=1 and d=0. Let's keep this as one option.
@@ -1719,6 +1846,7 @@ Here: by ACF Plot: q=0,1,2,3; Q=1,2 and PACF plot: p=0,1,2; P=1,2
 I'm choosing 0 because when you have more parameters, sometimes, some parameters are insignificant in the presence of other parameters.
 
 e.  Model Fitting
+
 
 ```{r}
 ######################## Check for different combinations ########
@@ -1785,7 +1913,9 @@ output[which.min(output$AICc),]
 
 ```
 
+
 ARIMA(1,1,1)x(0,1,1)12 is the model suggested above.
+
 
 ```{r,message=FALSE,warning=FALSE}
 ###### Set Seed for Reproducibility ######
@@ -1803,6 +1933,7 @@ cat(model_output[start_line:end_line], sep = "\n")
 
 ```
 
+
 `The Standard Residual Plot` appears good, displaying okay stationarity with a nearly constant mean and variation.
 
 `The Autocorrelation Function (ACF)` plot shows almost no correlation indicating that the model has harnessed everything that left is white noise. This indicates a good model fit.
@@ -1815,12 +1946,15 @@ cat(model_output[start_line:end_line], sep = "\n")
 
 f.  Model Fitting
 
+
 ```{r}
 fit <- Arima(USgas, order=c(1,1,1), seasonal=c(0,1,1))
 summary(fit)
 ```
 
+
 g.  Forecasting
+
 
 ```{r}
 
@@ -1831,7 +1965,9 @@ sarima.for(USgas, 36, 1,1,1,0,1,1,12)
 
 ```
 
+
 h.  Compare with Benchmark methods
+
 
 ```{r}
 fit <- Arima(USgas, order=c(1,1,1), seasonal=c(0,1,1))
@@ -1850,7 +1986,9 @@ autoplot(USgas) +
   guides(colour=guide_legend(title="Forecast"))
 ```
 
+
 fit looks a little better than `snaive` because the fit kind of captures the trend.
+
 
 ```{r}
 f2 <- snaive(USgas, h=36) 
@@ -1860,6 +1998,7 @@ summary(fit)
 
 ```
 
+
 Model error measurements are much lower than `snaive` benchmark method.
 
 Therefore, our fitted model is good.
@@ -1867,6 +2006,7 @@ Therefore, our fitted model is good.
 ## Example 3: Monthly Airline Passenger Numbers 1949-1960
 
 This follows the same procedure as we discussed before.
+
 
 ```{r}
 
@@ -1935,7 +2075,9 @@ model_output13 <- capture.output(sarima(lx, 1, 1, 0, 0, 1, 1, 12))
 cat(model_output13[grep("Coefficients", model_output13):length(model_output13)], sep = "\n")
 ```
 
+
 #### Forecasting
+
 
 ```{r}
 #chosen model : forecasting
@@ -1944,7 +2086,9 @@ sarima.for(lx, 12, 0,1,1, 0,1,1,12)
 
 ```
 
+
 ### Benchmark: Seasonal Naive
+
 
 ```{r}
 
@@ -1977,9 +2121,11 @@ accuracy(f2)
 summary(f2)
 ```
 
+
 ## Example 4 : Corticosteroid drug sales in Australia
 
 We will try to forecast monthly corticosteroid drug sales in Australia. These are known as H02 drugs under the Anatomical Therapeutic Chemical classification scheme.
+
 
 ```{r}
 ###### Plot Original H02 Sales Data ######
@@ -2002,11 +2148,13 @@ cbind("H02 Sales (Million Scripts)" = h02,
   theme_minimal()
 ```
 
+
 Data from July 1991 to June 2008 are plotted. There is a small increase in the variance with the level, so we take logarithms to stabilise the variance.
 
 The data are strongly seasonal and obviously non-stationary, so seasonal differencing will be used. The seasonally differenced data are shown below. It is not clear at this point whether we should do another difference or not.
 
 The last few observations appear to be different (more variable) from the earlier data. This may be due to the fact that data are sometimes revised when earlier sales are reported late.
+
 
 ```{r}
 ###### Plot ACF of Log-Transformed H02 Sales Data ######
@@ -2015,7 +2163,9 @@ ggAcf(lh02) +
   
 ```
 
+
 We can see high correlation and seasonal correlation. Therefore, let's try seasonal differencing.
+
 
 ```{r}
 ###### Apply Seasonal Differencing (D=1) to Log-Transformed H02 Sales Data ######
@@ -2038,9 +2188,11 @@ ggPacf(sdf) +
 
 ```
 
+
 From the above ACF plot, You can see that seasonal correlation is removed but there is ordinary correlation left.
 
 Let's do an ordinary differencing on top of seasonal differencing.
+
 
 ```{r}
 lh02 %>% diff(lag=12) %>%diff() %>%
@@ -2048,11 +2200,13 @@ lh02 %>% diff(lag=12) %>%diff() %>%
     main="Seasonally & Ordinary differenced H02 scripts")
 ```
 
+
 In the plots of the differenced data, there are spikes in the PACF at lags 12 and almost at 24, and seasonal lag 12 in the ACF. The pattern in the ACF is not indicative of any simple model.
 
 So q=0,1 ; p=1,2; Q=0,1,2; P=0,1; d=1; D=1; s=12
 
 We fit these model, and compare the AIC,BIC and AICc values.
+
 
 ```{r}
 
@@ -2114,9 +2268,11 @@ minbic
 
 ```
 
+
 The models suggested are: ARIMA(2,1,1)x(0,1,2) ARIMA(2,1,0)x(0,1,1)
 
 Another way of doing this:
+
 
 ```{r}
 d=1
@@ -2165,7 +2321,9 @@ ARIMA_fit[[which(ARIMA_BIC == min(ARIMA_BIC))]]
 
 ```
 
+
 The models suggested are: ARIMA(2,1,1)x(0,1,2) ARIMA(2,1,0)x(0,1,1)
+
 
 ```{r}
 (fit <- Arima(h02, order=c(2,1,1), seasonal=c(0,1,2),lambda=0))
@@ -2178,7 +2336,9 @@ checkresiduals(fit, lag=36)
 checkresiduals(fit2, lag=36)
 ```
 
+
 In another article <https://otexts.com/fpp2/seasonal-arima.html> they have found that the best model is ARIMA(3,0,1)(0,1,2)12.
+
 
 ```{r}
 (fit <- Arima(h02, order=c(3,0,1), seasonal=c(0,1,2),lambda=0))
@@ -2186,7 +2346,9 @@ checkresiduals(fit, lag=36)
 
 ```
 
+
 Model Diagnostic: There are a few significant spikes in the ACF, and the model fails the Ljung-Box test. The model can still be used for forecasting, but the prediction intervals may not be accurate due to the correlated residuals.
+
 
 ```{r}
 ###### Capture SARIMA Model Outputs ######
@@ -2204,6 +2366,7 @@ model_output3 <- capture.output(sarima(lh02, 3, 0, 1, 0, 1, 2, 12))
 cat(model_output3[grep("Coefficients", model_output3):length(model_output3)], sep = "\n")
 ```
 
+
 `The Standard Residual Plot` appears good in all 3 models, displaying okay stationarity with a nearly constant mean and variation.
 
 `The Autocorrelation Function (ACF)` plot shows nearly no correlation in all 3 models.
@@ -2218,11 +2381,14 @@ cat(model_output3[grep("Coefficients", model_output3):length(model_output3)], se
 
 Next we will try using the automatic ARIMA algorithm.
 
+
 ```{r}
 auto.arima(lh02)
 ```
 
+
 Running auto.arima() with all arguments left at their default values led to an ARIMA(2,1,1)(0,1,2) 12 model. However, as you can see from the below results from the `checkresiduals()`; model still fails the Ljung-Box test for 36 lags. Sometimes it is just not possible to find a model that passes all of the tests.
+
 
 ```{r}
 (fit4 <- Arima(lh02, order=c(2,1,1), seasonal=c(0,1,2)))
@@ -2230,7 +2396,9 @@ checkresiduals(fit4, lag=36)
 
 ```
 
+
 It looks however, `sarima(lh02,3,0,1,0,1,2,12)` is a better model.
+
 
 ```{r}
 
@@ -2260,9 +2428,11 @@ accuracy(f2)
 summary(fit)
 ```
 
+
 Accuracy measurements are smaller in the fitted model indicating a better model.
 
 Forecasts from the ARIMA(3,0,1)(0,1,2)12 model.
+
 
 ```{r}
 h02 %>%
@@ -2271,3 +2441,4 @@ h02 %>%
   autoplot() +
     ylab("H02 sales (million scripts)") + xlab("Year")
 ```
+

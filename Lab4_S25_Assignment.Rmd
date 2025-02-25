@@ -38,23 +38,10 @@ Fit an appropriate ARIMA model for ONE of the following data sets.
 
   a. Plot the data using ggplot or plotly and comment. 
 ```{r}
-library(quantmod)
-library(ggplot2)
-library(dplyr)
-
 getSymbols("TSLA", src = "yahoo", from = "2010-01-01", to = "2024-01-01")
-
-tsla_df <- data.frame(
-  Date = index(TSLA), 
-  Price = as.numeric(TSLA$TSLA.Adjusted)
-)
-
-head(tsla_df)
-
-ggplot(tsla_df, aes(x = Date, y = Price)) +
-  geom_line(color = "steelblue") +
-  labs(title = "Tesla Adjusted Closing Prices", x = "Year", y = "Stock Price") +
-  theme_minimal()
+tsla_prices <- TSLA$TSLA.Adjusted
+tsla_ts <- ts(tsla_prices, frequency = 252)
+plot(tsla_ts, main="Tesla Adjusted Closing Prices", col="blue", type="l")
 ```
 **There is no huge fluctuation of Tesla's stock price before 2020, since 2020, Tesla's stock market is increasing constantly to 2022. The potential reason for stock price's drop may because of COVID-19 and the competition in EV cars from China.**
 
@@ -63,12 +50,8 @@ ggplot(tsla_df, aes(x = Date, y = Price)) +
 **From the graph above, we can see that there is a great difference before 2020 and after 2020. Which means that there is no constant variation, and thus, log transformation might need to apply.**
 
 ```{r}
-tsla_df$Log_Price <- log(tsla_df$Price)
-
-ggplot(tsla_df, aes(x = Date, y = Log_Price)) +
-  geom_line(color = "darkred") +
-  labs(title = "Log Transformed Tesla Stock Prices", x = "Year", y = "Log Price") +
-  theme_minimal()
+log_ts <- log(tsla_ts)
+plot(log_ts, main = 'log transformation plot')
 ```
 
 
@@ -77,38 +60,23 @@ Get the lag plots  and interpret.
 ```{r}
 #| warning: false
 #| message: false
-library(ggplot2)
-library(dplyr)
-
-tsla_df_lags <- tsla_df %>%
-  mutate(
-    lag_1 = lag(Price, 1),
-    lag_2 = lag(Price, 2),
-    lag_3 = lag(Price, 3),
-    lag_4 = lag(Price, 4),
-    lag_5 = lag(Price, 5),
-    lag_6 = lag(Price, 6),
-    lag_7 = lag(Price, 7),
-    lag_8 = lag(Price, 8),
-    lag_9 = lag(Price, 9)
-  )
-
-tsla_df_long <- tsla_df_lags %>%
-  pivot_longer(cols = starts_with("lag_"), names_to = "Lag", values_to = "Lagged_Price")
-
-ggplot(tsla_df_long, aes(x = Lagged_Price, y = Price)) +
-  geom_point(alpha = 0.5) +
-  geom_smooth(method = "lm", se = FALSE, color = "red", linetype = "dashed") + 
-  facet_wrap(~Lag, scales = "free") +
-  labs(
-    title = "Lag Plots for Tesla Stock Prices",
-    x = "Lagged Price",
-    y = "Current Price"
-  ) +
+gglagplot(tsla_ts, do.lines = FALSE) + 
+  ggtitle('log plot') + 
   theme_minimal()
 ```
 
 **The lag plot shows a strong linear relationship between Tesla’s stock prices and their past values, indicating high autocorrelation. This suggests that the stock follows a persistent trend rather than behaving randomly. **
+
+# Plot acf:
+```{r}
+ggAcf(tsla_ts, 50) + 
+  ggtitle("acf plot") + 
+  theme_minimal()
+```
+
+```{r}
+tseries::adf.test(tsla_ts)
+```
 
 ## 3. Fit an appropriate ARIMA model.
 
@@ -116,15 +84,22 @@ Follow these steps.
 
   a. Difference the data and check the acf and pacf graphs.
 ```{r}
-par(mfrow = c(2,1))
-acf(diff(tsla_df$Price), main = "ACF of Differenced Tesla Prices")
-pacf(diff(tsla_df$Price), main = "PACF of Differenced Tesla Prices")
-par(mfrow = c(1,1))
+diff_ts <- diff(tsla_ts, lag = 12) # lag = 12 follows the monthly seasonality
+
+ggAcf(diff_ts, 50) + 
+  ggtitle("ACF plot after differencing") + 
+  theme_minimal() # strong autocorrelation and seasonality
+```
+```{r}
+ggPacf(diff_ts, 50) + 
+  ggtitle("PACF after differencing") + 
+  theme_minimal()
 ```
 
   b. Does it need a second order differencing?
 ```{r}
-adf.test(diff(tsla_df$Price))
+diff2 <- diff(tsla_ts, differences = 2)
+ggAcf(diff2, 12) + theme_minimal()
 ```
 
 **From the adf test above, we could see that the series is already stationary, so no need for a secondary differencing.**

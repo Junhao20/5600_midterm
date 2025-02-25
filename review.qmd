@@ -1,0 +1,250 @@
+---
+title: "Review Midterm"
+author: "Hermann Junhao Fan"
+format: 
+  html:
+    embed-resources: true
+toc: true
+---
+
+The questions will be the same as the sample exam, but the dataset is eggs_price data-set in lab4's folder.
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(forecast)
+library(astsa) 
+library(xts)
+library(tseries)
+library(fpp2)
+library(fma)
+library(lubridate)
+library(tidyverse)
+library(TSstudio)
+library(quantmod)
+library(tidyquant)
+library(plotly)
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+egg_data <- read.csv("eggs_price_2025.csv")
+colnames(egg_data) <- c("Date", "Price")
+plot_ly(egg_data, x = ~as.Date(Date)) %>%
+  add_lines(y = ~Price, name = 'Egg prices (USD)', line = list(color = 'blue')) %>%
+  layout(title = "Time series plot in Egg Prices",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "Egg Prices"))
+```
+
+```{r}
+ts_egg <- ts(egg_data$Price,
+             start = decimal_date(as.Date(min(egg_data$Date))),
+             frequency = 365.25) # Indeed we are also looking for daily data
+```
+
+## Checking for stationary
+
+```{r}
+f1 <- ggAcf(ts_egg, 50) + 
+  ggtitle("ACF plot without differencing") + 
+  theme_minimal()
+
+f1
+```
+The ACF decays slowly to 0, which is a typical sign of non-stationary. The ADF Test below indicating the same.
+
+```{r}
+tseries::adf.test(ts_egg)
+```
+## Lag plot:
+
+```{r}
+gglagplot(ts_egg, do.lines = FALSE) +
+  ggtitle("Lag Plot of Original Egg Prices") +
+  theme_minimal()
+```
+From lag 1-4, we are able to see a clear autocorrelation.The lag plot does not show a consistent of autocorrelation.
+
+```{r}
+require(gridExtra)
+
+plot1<-autoplot(ts_egg, main="without the log transformation") 
+plot2<-autoplot(log(ts_egg), main="log transformed data") 
+
+grid.arrange(plot1, plot2,nrow=2)
+```
+There is no such big difference, so we do not need log transformation in this case.
+
+```{r}
+tseries::adf.test(ts_egg)
+```
+Not stationary, so take the differencing
+
+```{r}
+fig1 <- ggAcf(ts_egg, 50) +
+  ggtitle("ACF of egg's price time series") + 
+  theme_minimal()
+
+fig1
+```
+Non-stationary
+
+```{r}
+diff <- diff(ts_egg)
+fig_diff1 <- ggAcf(diff, 50) + 
+  ggtitle("ACF For differenced egg price") + 
+  theme_minimal()
+
+fig_diff1
+```
+```{r}
+tseries::adf.test(diff)
+```
+Now it is stationary, second differencing is not needed.
+
+```{r}
+# now we have d = 1
+# for q -> ACF, acf has 2 significant spikes, so maybe q = 0, 1, 2
+fig_diff_P <- ggPacf(diff, 50) + 
+  ggtitle("PACF for differenced data") + 
+  theme_minimal()
+
+fig_diff_P # in this case, p = 0, 1, 2
+```
+```{r}
+
+# Load necessary libraries
+library(knitr)
+library(kableExtra)
+library(forecast)
+
+# Create an empty matrix to store results
+results_matrix <- matrix(rep(NA, 6 * 20), nrow = 20)
+
+# Initialize index for matrix row
+i <- 1
+
+# Loop through ARIMA model parameters: d = 1,2; p = 0:4; q = 1,2
+for (d in 1:2) {
+  for (p in 0:2) {
+    for (q in 0:2) {
+      
+      # Ensure 'ts_indeed' is a univariate time series by selecting the correct column
+      model <- Arima(ts_egg, order = c(p, d, q), include.drift = TRUE)
+      
+      # Store model parameters and AIC/BIC/AICc values in matrix
+      results_matrix[i, ] <- c(p, d, q, model$aic, model$bic, model$aicc)
+      
+      # Increment row index
+      i <- i + 1
+    }
+  }
+}
+
+# Convert matrix to data frame
+results_df <- as.data.frame(results_matrix)
+colnames(results_df) <- c("p", "d", "q", "AIC", "BIC", "AICc")
+
+# Find the row with the minimum AIC
+highlight_row <- which.min(results_df$AIC)
+
+# Generate kable table with highlighting for the row with the minimum AIC
+knitr::kable(results_df, align = 'c', caption = "Comparison of ARIMA Models") %>%
+  kable_styling(full_width = FALSE, position = "center") %>%
+  row_spec(highlight_row, bold = TRUE, background = "#FFFF99")  # Highlight row in yellow
+
+
+```
+
+So far, model ARIMA(2, 1, 2) is the best.
+
+```{r}
+auto.arima(ts_egg)
+```
+The Auto arima saying the ARIMA(4, 1, 1) is the best.
+
+```{r}
+# Loop aagin 
+
+
+# Load necessary libraries
+library(knitr)
+library(kableExtra)
+library(forecast)
+
+# Create an empty matrix to store results
+results_matrix <- matrix(rep(NA, 6 * 20), nrow = 20)
+
+# Initialize index for matrix row
+i <- 1
+
+# Loop through ARIMA model parameters: d = 1,2; p = 0:4; q = 1,2
+for (d in 1) {
+  for (p in 0:4) {
+    for (q in 0:2) {
+      
+      # Ensure 'ts_indeed' is a univariate time series by selecting the correct column
+      model <- Arima(ts_egg, order = c(p, d, q), include.drift = TRUE)
+      
+      # Store model parameters and AIC/BIC/AICc values in matrix
+      results_matrix[i, ] <- c(p, d, q, model$aic, model$bic, model$aicc)
+      
+      # Increment row index
+      i <- i + 1
+    }
+  }
+}
+
+# Convert matrix to data frame
+results_df <- as.data.frame(results_matrix)
+colnames(results_df) <- c("p", "d", "q", "AIC", "BIC", "AICc")
+
+# Find the row with the minimum AIC
+highlight_row <- which.min(results_df$AIC)
+
+# Generate kable table with highlighting for the row with the minimum AIC
+knitr::kable(results_df, align = 'c', caption = "Comparison of ARIMA Models") %>%
+  kable_styling(full_width = FALSE, position = "center") %>%
+  row_spec(highlight_row, bold = TRUE, background = "#FFFF99")  # Highlight row in yellow
+
+```
+
+ARIMA(4, 1, 2) is so far the best.
+
+## Diag:
+
+Possible models:
+
+ARIMA(4, 1, 1) -> Auto.arima
+ARIMA(2, 1, 2) -> First choice
+
+```{r}
+model_output <- capture.output(sarima(ts_egg, 2, 1, 2))
+
+# Find the line numbers dynamically based on a keyword
+start_line <- grep("Coefficients", model_output)  # Locate where coefficient details start
+end_line <- length(model_output)  # Last line of output
+
+# Print the relevant section automatically
+cat(model_output[start_line:end_line], sep = "\n")
+```
+```{r}
+model_output <- capture.output(sarima(ts_egg, 4, 1, 1))
+
+# Find the line numbers dynamically based on a keyword
+start_line <- grep("Coefficients", model_output)  # Locate where coefficient details start
+end_line <- length(model_output)  # Last line of output
+
+# Print the relevant section automatically
+cat(model_output[start_line:end_line], sep = "\n")
+```
+
+Best model should be 2, 1, 2.
+
+```{r}
+fit <- Arima(ts_egg, order = c(2, 1, 2), include.drift = FALSE)
+summary(fit)
+```
+

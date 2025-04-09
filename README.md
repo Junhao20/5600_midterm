@@ -1,6 +1,8 @@
 # DSAN 5600 Time Series Midterm Exam Review
 
 ## Reference: Professor Purna's Code in Lab 4's demonstration
+## Gamage, P. (2026). Applied Time Series for Data Science.
+
 ## Code by code example:
 
 ---

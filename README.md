@@ -14,6 +14,10 @@ toc: true
 
 The questions will be the same as the sample exam, but the dataset is eggs_price data-set in lab4's folder.
 
+## Quick introduction to this repo
+
+This repo is built based on Professor Purna's sample code, and I modified and collected into this single repo. This can be used for you exam 1, exam 2's material will be published after exam 1.
+
 ```{r, echo=FALSE,message=FALSE,warning=FALSE}
 library(tidyverse)
 library(ggplot2)
